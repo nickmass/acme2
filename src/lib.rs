@@ -115,6 +115,7 @@ mod error;
 mod helpers;
 mod jws;
 mod order;
+mod renewal;
 
 pub use account::*;
 pub use authorization::*;
@@ -122,11 +123,12 @@ pub use directory::*;
 pub use error::Error;
 pub use error::ServerError;
 pub use error::TransportError;
+pub use helpers::Identifier;
 pub use helpers::gen_ec_p256_private_key;
 pub use helpers::gen_rsa_private_key;
-pub use helpers::Identifier;
 pub use openssl;
 pub use order::*;
+pub use renewal::*;
 
 #[cfg(test)]
 mod tests {

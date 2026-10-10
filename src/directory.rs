@@ -93,6 +93,8 @@ pub struct Directory {
   pub(crate) key_change_url: String,
   #[serde(rename = "newAuthz")]
   pub(crate) new_authz_url: Option<String>,
+  #[serde(rename = "renewalInfo")]
+  pub(crate) renewal_info_url: Option<String>,
   /// Optional metadata describing a directory.
   pub meta: Option<DirectoryMeta>,
 }

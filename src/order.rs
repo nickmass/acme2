@@ -1,23 +1,25 @@
 use crate::account::Account;
 use crate::error::*;
 use crate::helpers::*;
+use crate::renewal::CertificateAriId;
 use openssl::hash::MessageDigest;
 use openssl::pkey::PKey;
 use openssl::pkey::Private;
 use openssl::stack::Stack;
-use openssl::x509::extension::SubjectAlternativeName;
-use openssl::x509::X509Name;
-use openssl::x509::X509Req;
 use openssl::x509::X509;
+use openssl::x509::X509Name;
+use openssl::x509::X509Ref;
+use openssl::x509::X509Req;
+use openssl::x509::extension::SubjectAlternativeName;
 use serde::Deserialize;
 use serde_json::json;
 use std::sync::Arc;
 use std::time::Duration;
+use tracing::Level;
+use tracing::Span;
 use tracing::debug;
 use tracing::field;
 use tracing::instrument;
-use tracing::Level;
-use tracing::Span;
 
 /// The status of this order.
 ///
@@ -82,6 +84,7 @@ pub struct OrderBuilder {
   account: Arc<Account>,
 
   identifiers: Vec<Identifier>,
+  replaces: Option<CertificateAriId>,
   // TODO(lucacasonato): externalAccountBinding
 }
 
@@ -90,6 +93,7 @@ impl OrderBuilder {
     OrderBuilder {
       account,
       identifiers: vec![],
+      replaces: None,
     }
   }
 
@@ -99,6 +103,18 @@ impl OrderBuilder {
   pub fn set_identifiers(&mut self, identifiers: Vec<Identifier>) -> &mut Self {
     self.identifiers = identifiers;
     self
+  }
+
+  /// Set the certificate this order replaces
+  ///
+  /// This is optional and used by the CA for tracking purposes
+  pub fn set_replaces_certificate(
+    &mut self,
+    certificate: &X509Ref,
+  ) -> Result<&mut Self, Error> {
+    let cert_id = CertificateAriId::new(certificate)?;
+    self.replaces = Some(cert_id);
+    Ok(self)
   }
 
   /// Add a type `dns` identifier to the list of identifiers for this
@@ -116,12 +132,23 @@ impl OrderBuilder {
   pub async fn build(&mut self) -> Result<Order, Error> {
     let dir = self.account.directory.clone().unwrap();
 
+    let json = if let Some(replaces) = self.replaces.as_ref()
+      && dir.renewal_info_url.is_some()
+    {
+      json!({
+        "identifiers": self.identifiers,
+        "replaces": replaces.as_str(),
+      })
+    } else {
+      json!({
+        "identifiers": self.identifiers,
+      })
+    };
+
     let (res, headers) = dir
       .authenticated_request::<_, Order>(
         &dir.new_order_url,
-        json!({
-          "identifiers": self.identifiers,
-        }),
+        json,
         self.account.private_key.clone().unwrap(),
         Some(self.account.id.clone()),
       )
